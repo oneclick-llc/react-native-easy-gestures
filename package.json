@@ -1,6 +1,6 @@
 {
   "name": "react-native-easy-gestures-new",
-  "version": "2.2.4",
+  "version": "2.2.6",
   "scripts": {
     "start": "node node_modules/react-native/local-cli/cli.js start",
     "test": "jest"
@@ -23,7 +23,8 @@
   "contributors": [
     "Maxim (https://github.com/anorudes)",
     "Hammad Jutt (https://github.com/hammadj)",
-    "David Alexander Bjerremose (https://github.com/DaBs)"
+    "David Alexander Bjerremose (https://github.com/DaBs)",
+    "MagicWorld (https://github.com/ewlkkf)"
   ],
   "license": "MIT",
   "devDependencies": {
