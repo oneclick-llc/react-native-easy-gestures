@@ -1,7 +1,7 @@
 import React from "react";
 import { AccessibilityProps, StyleProp, ViewStyle } from "react-native";
 
-declare module "react-native-easy-gestures";
+declare module "react-native-easy-gestures-new";
 
 export interface GesturesProps extends AccessibilityProps {
   draggable?: boolean | { x?: boolean; y?: boolean };
