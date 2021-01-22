@@ -10,12 +10,12 @@ React Native Gestures. Support: Drag, Scale and Rotate a Component.
 
 ![example](https://raw.githubusercontent.com/keske/react-native-easy-gestures/master/static/gestures.gif)
 
-## Instalation
+## Installation
 
 ### RN > 0.6 👶
 
 ```
-$ npm install --save react-native-easy-gestures
+$ npm install --save react-native-easy-gestures-new
 ```
 
 ### RN < 0.46 👴
