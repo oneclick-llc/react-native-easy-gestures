@@ -204,7 +204,7 @@ onScaleEnd?(event: object, styles: object): void
 # Development
 
 ```
-$ git clone https://github.com/keske/react-native-easy-gestures.git
+$ git clone https://github.com/ewlkkf/react-native-easy-gestures.git
 $ cd react-native-easy-gestures
 $ npm install
 ```
