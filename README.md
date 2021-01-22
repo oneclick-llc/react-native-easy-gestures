@@ -1,12 +1,18 @@
-# React Native Easy Gestures
+# React Native Easy Gestures (w/ Bug Fixes & Patch)
 
 React Native Gestures. Support: Drag, Scale and Rotate a Component.
+
+- [x] TypeScript support
+- [x] Manually editable rotate and scale value
+- [x] Rotate angle threshold added (Rotation steps added)
+- [x] Now child component can detect onPress event detection
+- [x] Ready for react 17.0.0
 
 ![example](https://raw.githubusercontent.com/keske/react-native-easy-gestures/master/static/gestures.gif)
 
 ## Instalation
 
-### RN > 0.46 👶
+### RN > 0.6 👶
 
 ```
 $ npm install --save react-native-easy-gestures
@@ -20,7 +26,14 @@ $ npm install --save react-native-easy-gestures@1.0.x
 
 ## Usage
 
-```javascript
+### <Warning>
+
+> this project is not 100% fully patched yet, so here's some caution:
+> you can't statically setting the values when you have rotate or scale value and remove it.
+> make sure rotate and scale value exists if you're using these features. ('0deg' is ok.)
+> or you can manually edit transform value in style attribute.
+
+```js
 import Gestures from 'react-native-easy-gestures';
 
 /* Simple example: */
@@ -79,6 +92,21 @@ import Gestures from 'react-native-easy-gestures';
     }}
   />
 </Gestures>
+
+//Add scale and rotate props that allow statically setting the values
+const [currentDeg, setCurrentDeg] = useState(180);
+<Gestures
+  rotate={`${currentDeg}deg`}
+  scale={1}
+>
+  <Image
+    source={photo}
+    style={{
+      width,
+      height,
+    }}
+  />
+</Gestures>
 ```
 
 ## Props
@@ -90,17 +118,25 @@ draggable?: boolean = true | object = { x?: boolean = true, y?: boolean = true }
 ```
 
 ```javascript
-rotatable?: boolean = true
+rotatable?: boolean = true | object = { step?: number } (threshold angle)
 ```
 
 ```javascript
 scalable?: boolean = true | object = { min?: number = 0.33, max?: number = 2 }
 ```
 
+```javascript
+rotate?: string (rotate value, after 'deg' is required. example: '120deg')
+```
+
+```javascript
+scale?: number
+```
+
 ### Styles
 
 ```javascript
-style?: object // RN Styles
+style?: StyleProp<ViewStyle> (object) // which means, RN Styles.
 ```
 
 ### Callbacks
@@ -171,11 +207,9 @@ onScaleEnd?(event: object, styles: object): void
 $ git clone https://github.com/keske/react-native-easy-gestures.git
 $ cd react-native-easy-gestures
 $ npm install
-$ react-native run-ios
 ```
 
 # TODO
 
-- [ ] Rotate step, ex: every 90deg
+- [x] Rotate step, ex: every 90deg
 - [ ] Guidelines and center snap
-

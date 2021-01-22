@@ -30,6 +30,8 @@ interface GesturesStaticProperties {
   draggable?: true | { x?: boolean; y?: boolean };
   rotatable?: boolean;
   scalable?: boolean | { min?: number; max?: number };
+  rotate?: string;
+  scale?: number;
 }
 
 declare const Gestures: React.ComponentType<GesturesProps> &
