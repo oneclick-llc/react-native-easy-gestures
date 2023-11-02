@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import PropTypes from "prop-types";
+import { AccessibilityProps, GestureResponderEvent, StyleProp, ViewProps, ViewStyle } from "react-native";
 
 import { PanResponder, View, Platform } from "react-native";
 
@@ -12,57 +12,83 @@ import {
   isMultiTouch,
 } from "./utils/events.js";
 
+export interface GesturesProps extends AccessibilityProps {
+  children: React.ReactNode;
+  isEnabled?: boolean;
+  hitSlop?: ViewProps["hitSlop"];
+  draggable?: boolean | { x?: boolean; y?: boolean };
+  rotatable?: boolean | { step?: number };
+  scalable?: boolean | { min?: number; max?: number };
+  rotate?: string;
+  scale?: number;
+
+  style?: StyleProp<ViewStyle>;
+  onStart?: (event: GestureResponderEvent, style: ViewStyle) => void;
+  onChange?(event: object, styles: object): void;
+  onEnd?(event: GestureResponderEvent, style: ViewStyle): void;
+  onMultyTouchStart?(event: object, styles: object): void;
+  onMultyTouchChange?(event: object, styles: object): void;
+  onMultyTouchEnd?(event: object, styles: object): void;
+  onRotateStart?(event: object, styles: object): void;
+  onRotateChange?(event: object, styles: object): void;
+  onRotateEnd?(event: object, styles: object): void;
+  onScaleStart?(event: object, styles: object): void;
+  onScaleChange?(event: object, styles: object): void;
+  onScaleEnd?(event: object, styles: object): void;
+}
+
+
 export default class Gestures extends Component {
-  static propTypes = {
-    children: PropTypes.element,
-    isEnabled: PropTypes.bool,
-    // Behavior
-    hitSlop: PropTypes.shape({
-      top: PropTypes.number,
-      right: PropTypes.number,
-      left: PropTypes.number,
-      bottom: PropTypes.number,
-    }),
-    draggable: PropTypes.oneOfType([
-      PropTypes.bool,
-      PropTypes.shape({
-        x: PropTypes.bool,
-        y: PropTypes.bool,
-      }),
-    ]),
-    rotatable: PropTypes.oneOfType([
-      PropTypes.bool,
-      PropTypes.shape({
-        step: PropTypes.number,
-      }),
-    ]),
-    scalable: PropTypes.oneOfType([
-      PropTypes.bool,
-      PropTypes.shape({
-        min: PropTypes.number,
-        max: PropTypes.number,
-      }),
-    ]),
-    // Static control value
-    scale: PropTypes.number,
-    rotate: PropTypes.string,
-    // Styles
-    style: PropTypes.object,
-    // Callbacks
-    onStart: PropTypes.func,
-    onChange: PropTypes.func,
-    onEnd: PropTypes.func,
-    onMultyTouchStart: PropTypes.func,
-    onMultyTouchChange: PropTypes.func,
-    onMultyTouchEnd: PropTypes.func,
-    onRelease: PropTypes.func, // Legacy
-    onRotateStart: PropTypes.func,
-    onRotateChange: PropTypes.func,
-    onRotateEnd: PropTypes.func,
-    onScaleStart: PropTypes.func,
-    onScaleChange: PropTypes.func,
-    onScaleEnd: PropTypes.func,
-  };
+  // static propTypes = {
+  //   children: PropTypes.element,
+  //   isEnabled: PropTypes.bool,
+  //   // Behavior
+  //   hitSlop: PropTypes.shape({
+  //     top: PropTypes.number,
+  //     right: PropTypes.number,
+  //     left: PropTypes.number,
+  //     bottom: PropTypes.number,
+  //   }),
+  //   draggable: PropTypes.oneOfType([
+  //     PropTypes.bool,
+  //     PropTypes.shape({
+  //       x: PropTypes.bool,
+  //       y: PropTypes.bool,
+  //     }),
+  //   ]),
+  //   rotatable: PropTypes.oneOfType([
+  //     PropTypes.bool,
+  //     PropTypes.shape({
+  //       step: PropTypes.number,
+  //     }),
+  //   ]),
+  //   scalable: PropTypes.oneOfType([
+  //     PropTypes.bool,
+  //     PropTypes.shape({
+  //       min: PropTypes.number,
+  //       max: PropTypes.number,
+  //     }),
+  //   ]),
+  //   // Static control value
+  //   scale: PropTypes.number,
+  //   rotate: PropTypes.string,
+  //   // Styles
+  //   style: PropTypes.object,
+  //   // Callbacks
+  //   onStart: PropTypes.func,
+  //   onChange: PropTypes.func,
+  //   onEnd: PropTypes.func,
+  //   onMultyTouchStart: PropTypes.func,
+  //   onMultyTouchChange: PropTypes.func,
+  //   onMultyTouchEnd: PropTypes.func,
+  //   onRelease: PropTypes.func, // Legacy
+  //   onRotateStart: PropTypes.func,
+  //   onRotateChange: PropTypes.func,
+  //   onRotateEnd: PropTypes.func,
+  //   onScaleStart: PropTypes.func,
+  //   onScaleChange: PropTypes.func,
+  //   onScaleEnd: PropTypes.func,
+  // };
 
   static defaultProps = {
     children: {},
