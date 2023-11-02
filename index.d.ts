@@ -1,9 +1,12 @@
 import React from "react";
-import { AccessibilityProps, StyleProp, ViewStyle } from "react-native";
+import { AccessibilityProps, StyleProp, ViewProps, ViewStyle } from "react-native";
 
 declare module "react-native-easy-gestures-new";
 
 export interface GesturesProps extends AccessibilityProps {
+  children: React.ReactNode
+  isEnabled?: boolean
+  hitSlop?: ViewProps['hitSlop']
   draggable?: boolean | { x?: boolean; y?: boolean };
   rotatable?: boolean | { step?: number };
   scalable?: boolean | { min?: number; max?: number };
@@ -11,10 +14,9 @@ export interface GesturesProps extends AccessibilityProps {
   scale?: number;
 
   style?: StyleProp<ViewStyle>;
-
-  onStart?: (event: object, styles: object) => void;
+  onStart?: (event: GestureResponderEvent, style: ViewStyle) => void;
   onChange?(event: object, styles: object): void;
-  onEnd?(event: object, styles: object): void;
+  onEnd?(event: GestureResponderEvent, style: ViewStyle): void;
   onMultyTouchStart?(event: object, styles: object): void;
   onMultyTouchChange?(event: object, styles: object): void;
   onMultyTouchEnd?(event: object, styles: object): void;
