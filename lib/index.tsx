@@ -2,130 +2,108 @@ import React, { Component } from 'react'
 import {
   AccessibilityProps,
   GestureResponderEvent,
-  StyleProp,
+  NativeTouchEvent,
+  PanResponderCallbacks,
+  PanResponderInstance,
   ViewProps,
   ViewStyle,
 } from 'react-native'
 import { PanResponder, View } from 'react-native'
 
-// Utils
-import { angle, distance } from './utils/math.js'
-import { getAngle, getScale, getTouches, isMultiTouch } from './utils/events.js'
+import { angle, distance } from './utils/math'
+import {
+  assertDoubleTouch,
+  getAngle,
+  getScale,
+  getTouches,
+} from './utils/events'
+
+interface TransformStyle {
+  transform: [
+    { translateX: number },
+    { translateY: number },
+    { rotate: string },
+    { scale: number },
+  ]
+}
+export type GesturesStyle = Omit<ViewStyle, 'transform'> & TransformStyle
 
 export interface GesturesProps extends AccessibilityProps {
   children: React.ReactNode
+
   isEnabled?: boolean
   hitSlop?: ViewProps['hitSlop']
-  draggable?: boolean | { x?: boolean; y?: boolean }
-  rotatable?: boolean | { step?: number }
-  scalable?: boolean | { min?: number; max?: number }
-  rotate?: string
-  scale?: number
+  draggable?: boolean
+  rotatable?: boolean
+  minScale?: number
+  maxScale?: number
 
-  style?: StyleProp<ViewStyle>
-  onStart?: (event: GestureResponderEvent, style: ViewStyle) => void
-  onChange?(event: object, styles: object): void
-  onEnd?(event: GestureResponderEvent, style: ViewStyle): void
-  onMultyTouchStart?(event: object, styles: object): void
-  onMultyTouchChange?(event: object, styles: object): void
-  onMultyTouchEnd?(event: object, styles: object): void
-  onRotateStart?(event: object, styles: object): void
-  onRotateChange?(event: object, styles: object): void
-  onRotateEnd?(event: object, styles: object): void
-  onScaleStart?(event: object, styles: object): void
-  onScaleChange?(event: object, styles: object): void
-  onScaleEnd?(event: object, styles: object): void
+  initialStyle?: Omit<GesturesStyle, 'transform'>
+
+  initialTranslateX?: number
+  initialTranslateY?: number
+  initialRotate?: string
+  initialScale?: number
+
+  onStart?(event: GestureResponderEvent, style: GesturesStyle): void
+  onMove?(event: GestureResponderEvent, styles: GesturesStyle): void
+  onEnd?(event: GestureResponderEvent, style: GesturesStyle): void
 }
 
-interface GesturesState {
-  isMultyTouchingNow: boolean
-  isRotatingNow: boolean
-  isScalingNow: boolean
-  style: ViewStyle
-}
+interface GesturesState {}
 
-export default class Gestures extends Component<GesturesProps> {
-  static defaultProps = {
-    children: {},
-    // Behavior
+export class Gestures extends Component<GesturesProps, GesturesState> {
+  static defaultProps: GesturesProps = {
+    children: undefined,
+
     isEnabled: true,
     hitSlop: { top: 20, right: 20, left: 20, bottom: 20 },
-    draggable: true || {
-      x: true,
-      y: false,
-    },
-    rotatable: true || {
-      step: 90,
-    },
-    scalable: true || {
-      min: 0.33,
-      max: 2,
-    },
-    // Styles
-    style: {
-      left: 0,
-      top: 0,
-      transform: [{ rotate: '0deg' }, { scale: 1 }],
-    },
-    // Callbacks
-    onStart: () => {},
-    onChange: () => {},
-    onEnd: () => {},
-    onRelease: () => {}, // Legacy
+    draggable: true,
+    rotatable: true,
+    minScale: 0.3,
+    maxScale: 3,
 
-    // New callbacks
-    onMultyTouchStart: () => {},
-    onMultyTouchChange: () => {},
-    onMultyTouchEnd: () => {},
-    onRotateStart: () => {},
-    onRotateChange: () => {},
-    onRotateEnd: () => {},
-    onScaleStart: () => {},
-    onScaleChange: () => {},
-    onScaleEnd: () => {},
+    initialStyle: {},
+    initialTranslateX: 0,
+    initialTranslateY: 0,
+    initialRotate: '0deg',
+    initialScale: 0,
   }
 
-  constructor(props) {
+  private _panResponder: PanResponderInstance
+
+  private _touchesOnPanResponderGrant: NativeTouchEvent[] = []
+  private _styleOnPanResponderGrant: GesturesStyle
+
+  private _prevAngle: number
+  private _prevDistance: number
+
+  private _transformStyle: TransformStyle['transform'] = [
+    { translateX: 0 },
+    { translateY: 0 },
+    { rotate: '0deg' },
+    { scale: 1 },
+  ]
+
+  private _wrapStyle: GesturesStyle
+
+  constructor(props: GesturesProps) {
     super(props)
 
-    const style = {
-      ...Gestures.defaultProps.style,
-      ...this.props.style,
-    }
-
-    const styles = {
-      ...style,
+    this._wrapStyle = {
+      ...this.props.initialStyle,
       transform: [
-        { rotate: props.rotate ? props.rotate : props.style.rotate | '0deg' },
-        { scale: props.scale ? props.scale : props.style.scale | 1 },
+        { translateX: props.initialTranslateX ?? 0 },
+        { translateY: props.initialTranslateY ?? 0 },
+        { rotate: props.initialRotate ?? '0deg' },
+        { scale: props.initialScale ?? 1 },
       ],
-      top: props.rotate === '180deg' && style.height ? style.height : style.top,
-      left: props.rotate === '90deg' && style.width ? style.width : style.left,
     }
 
-    this.state = {
-      isMultyTouchingNow: false,
-      isRotatingNow: false,
-      isScalingNow: false,
-
-      style: styles,
-    }
-
-    // this.state = {
-    //   isMultyTouchingNow: false,
-    //   isRotatingNow: false,
-    //   isScalingNow: false,
-
-    //   style: {
-    //     ...Gestures.defaultProps.style,
-    //     ...this.props.style,
-    //   },
-    // };
-
-    this.pan = PanResponder.create({
-      onPanResponderGrant: this.onMoveStart,
-      onPanResponderMove: this.onMove,
-      onPanResponderEnd: this.onMoveEnd,
+    this._panResponder = PanResponder.create({
+      onPanResponderGrant: this._handlePanResponderGrant,
+      onPanResponderMove: this._handlePanResponderMove,
+      onPanResponderEnd: this._handlePanResponderEnd,
 
       onPanResponderTerminate: () => true,
       onShouldBlockNativeResponder: () => true,
@@ -138,292 +116,157 @@ export default class Gestures extends Component<GesturesProps> {
     })
   }
 
-  // componentWillReceiveProps(nextProps) {
-  //   this.updateProps(nextProps);
-  // }
-
-  shouldComponentUpdate(nextProps, nextState) {
-    //problem : is there's no props from component, error will happened
-    if (
-      nextProps.rotate !== this.props.rotate ||
-      nextProps.scale !== this.props.scale
-    )
-      this.updateProps(nextProps)
-
-    return true
-  }
-
-  componentDidMount() {
-    const { style } = this.state
-
-    this.prevStyles = style
-  }
-
-  onDrag(event, gestureState) {
-    const { initialStyles } = this
+  private _handleDragGesture: NonNullable<
+    PanResponderCallbacks['onPanResponderMove']
+  > = (_event, gestureState) => {
+    const { _styleOnPanResponderGrant } = this
     const { draggable } = this.props
 
-    const isObject = draggable === Object(draggable)
+    const translateX = draggable
+      ? _styleOnPanResponderGrant.transform[0].translateX + gestureState.dx
+      : _styleOnPanResponderGrant.transform[0].translateX
 
-    const left = (isObject ? draggable.x : draggable)
-      ? initialStyles.left + gestureState.dx
-      : initialStyles.left
+    const translateY = draggable
+      ? _styleOnPanResponderGrant.transform[1].translateY + gestureState.dy
+      : _styleOnPanResponderGrant.transform[1].translateY
 
-    const top = (isObject ? draggable.y : draggable)
-      ? initialStyles.top + gestureState.dy
-      : initialStyles.top
-
-    this.dragStyles = { left, top }
+    this._transformStyle = [
+      { translateX },
+      { translateY },
+      this._transformStyle[2],
+      this._transformStyle[3],
+    ]
   }
 
-  onRotate = (event) => {
-    const { onRotateStart, onRotateChange, rotatable } = this.props
-    const { isRotatingNow, style } = this.state
+  private _handleRotateGesture: NonNullable<
+    PanResponderCallbacks['onPanResponderMove']
+  > = (event) => {
+    const { rotatable } = this.props
 
-    const { initialTouches } = this
+    const { _touchesOnPanResponderGrant } = this
 
-    if (rotatable === Object(rotatable) || rotatable) {
+    if (rotatable) {
       const currentAngle = angle(getTouches(event))
       const initialAngle =
-        initialTouches.length > 1 ? angle(initialTouches) : currentAngle
+        _touchesOnPanResponderGrant.length > 1
+          ? angle(_touchesOnPanResponderGrant)
+          : currentAngle
       const newAngle = currentAngle - initialAngle
-      const diffAngle = this.prevAngle - newAngle
+      const diffAngle = this._prevAngle - newAngle
 
-      this.pinchStyles.transform.push({
-        rotate: getAngle(event, style, diffAngle),
-      })
+      this._transformStyle[2] = { rotate: getAngle(this._wrapStyle, diffAngle) }
 
-      this.prevAngle = newAngle
-
-      if (!isRotatingNow) {
-        onRotateStart(event, style)
-
-        this.setState({ isRotatingNow: true })
-      } else {
-        onRotateChange(event, style)
-      }
+      this._prevAngle = newAngle
     }
   }
 
-  onScale = (event) => {
-    const { onScaleStart, onScaleChange, scalable } = this.props
-    const { isScalingNow, style } = this.state
-    const { initialTouches } = this
+  private _handleScaleGesture: NonNullable<
+    PanResponderCallbacks['onPanResponderMove']
+  > = (event) => {
+    const eventTouches = getTouches(event)
+    const isEventDoubleTouch = assertDoubleTouch(eventTouches)
+    if (!isEventDoubleTouch) return
 
-    const isObject = scalable === Object(scalable)
+    const { _touchesOnPanResponderGrant } = this
+    const isPanResponderGrantedWithDoubleTouch = assertDoubleTouch(
+      _touchesOnPanResponderGrant,
+    )
+    if (!isPanResponderGrantedWithDoubleTouch) return
 
-    if (isObject || scalable) {
-      const currentDistance = distance(getTouches(event))
-      const initialDistance = distance(initialTouches)
+    const { minScale, maxScale } = this.props
+
+    if (
+      minScale !== undefined &&
+      maxScale !== undefined &&
+      minScale !== 1 &&
+      maxScale !== 1
+    ) {
+      const currentDistance = distance(eventTouches)
+      const initialDistance = distance(_touchesOnPanResponderGrant)
+
       const increasedDistance = currentDistance - initialDistance
-      const diffDistance = this.prevDistance - increasedDistance
+      const diffDistance = this._prevDistance - increasedDistance
 
-      const min = isObject ? scalable.min : 0.33
-      const max = isObject ? scalable.max : 2
       const scale = Math.min(
-        Math.max(getScale(event, style, diffDistance), min),
-        max,
+        Math.max(getScale(this._wrapStyle, diffDistance), minScale),
+        maxScale,
       )
 
-      this.pinchStyles.transform.push({ scale })
-      this.prevDistance = increasedDistance
+      this._transformStyle[3] = { scale }
+      this._prevDistance = increasedDistance
+    }
+  }
 
-      if (!isScalingNow) {
-        onScaleStart(event, style)
+  private _handlePanResponderGrant: PanResponderCallbacks['onPanResponderStart'] =
+    (event) => {
+      const { onStart } = this.props
 
-        this.setState({ isScalingNow: true })
+      this._prevAngle = 0
+      this._prevDistance = 0
+
+      this._touchesOnPanResponderGrant = getTouches(event)
+      this._styleOnPanResponderGrant = this._wrapStyle
+
+      onStart?.(event, this._wrapStyle)
+    }
+
+  private _handlePanResponderMove: PanResponderCallbacks['onPanResponderMove'] =
+    (event, gestureState) => {
+      const touches = getTouches(event)
+
+      if (touches.length !== this._touchesOnPanResponderGrant.length) {
+        this._touchesOnPanResponderGrant = touches
       } else {
-        onScaleChange(event, style)
+        this._handleDragGesture(event, gestureState)
+        this._handlePinchGesture(event, gestureState)
       }
+
+      this._setWrapStyleBasedOnTransformStyles()
+
+      this.props.onMove?.(event, this._wrapStyle)
+    }
+
+  private _handlePanResponderEnd: PanResponderCallbacks['onPanResponderEnd'] = (
+    event,
+  ) => {
+    this.props.onEnd?.(event, this._wrapStyle)
+
+    this._setWrapStyleBasedOnTransformStyles()
+  }
+
+  private _handlePinchGesture: NonNullable<
+    PanResponderCallbacks['onPanResponderMove']
+  > = (event, gestureState) => {
+    if (event.nativeEvent.touches.length > 1) {
+      this._handleScaleGesture(event, gestureState)
+      this._handleRotateGesture(event, gestureState)
     }
   }
 
-  onMoveStart = (event) => {
-    const { style } = this.state
-    const { onMultyTouchStart, onStart } = this.props
-
-    const touches = getTouches(event)
-
-    this.prevAngle = 0
-    this.prevDistance = 0
-    this.initialTouchesAngle = 0
-    this.pinchStyles = {}
-    this.dragStyles = {}
-    this.prevStyles = style
-
-    this.initialTouches = getTouches(event)
-    this.initialStyles = style
-
-    onStart(event, style)
-
-    if (touches.length > 1) {
-      onMultyTouchStart(event, style)
-
-      this.setState({ isMultyTouchingNow: true })
-    }
-  }
-
-  onMove = (event, gestureState) => {
-    const { isMultyTouchingNow, style } = this.state
-    const { onChange, onMultyTouchChange } = this.props
-
-    const { initialTouches } = this
-
-    const touches = getTouches(event)
-
-    if (touches.length !== initialTouches.length) {
-      this.initialTouches = touches
-    } else {
-      this.onDrag(event, gestureState)
-      this.onPinch(event)
+  private _wrapRef: View | null
+  private _setWrapStyleBasedOnTransformStyles = () => {
+    const style: GesturesStyle = {
+      ...this._wrapStyle,
+      transform: this._transformStyle,
     }
 
-    if (isMultyTouchingNow) onMultyTouchChange(event, style)
-
-    this.updateStyles()
-
-    onChange(event, style)
-  }
-
-  onMoveEnd = (event) => {
-    const { isMultyTouchingNow, isRotatingNow, isScalingNow, style } =
-      this.state
-    const {
-      onEnd,
-      onMultyTouchEnd,
-      onRelease, // Legacy
-      onRotateEnd,
-      onScaleEnd,
-      rotatable,
-    } = this.props
-
-    onEnd(event, style)
-    onRelease(event, style) // Legacy
-
-    if (isRotatingNow) {
-      if (rotatable === Object(rotatable)) {
-        const endAngle = parseFloat(getAngle(event, style, 0))
-        const snapAngle = Math.round(endAngle / rotatable.step) * rotatable.step
-        const diffAngle = endAngle - snapAngle
-        this.pinchStyles.transform = [
-          { rotate: getAngle(event, style, diffAngle) },
-          this.pinchStyles.transform.find((x) => x.scale) ??
-            Gestures.defaultProps.style.transform.find((x) => x.scale),
-        ]
-      }
-      this.updateStyles()
-      onRotateEnd(event, style)
-    }
-
-    if (isScalingNow) onScaleEnd(event, style)
-
-    if (isMultyTouchingNow) onMultyTouchEnd(event, style)
-
-    this.setState({
-      isRotatingNow: false,
-      isScalingNow: false,
-    })
-  }
-
-  onPinch = (event) => {
-    if (isMultiTouch(event)) {
-      this.pinchStyles = { transform: [] }
-
-      this.onScale(event)
-      this.onRotate(event)
-    }
-  }
-
-  updateStyles = () => {
-    const style = {
-      ...this.state.style,
-      ...this.dragStyles,
-      ...this.pinchStyles,
-    }
-
-    this.updateNativeStyles(style)
-    this.setState({ style })
-  }
-
-  updateProps = (nextProps) => {
-    const rotate = this.state.style.transform[0].rotate
-    const scale = this.state.style.transform[1].scale
-
-    const safeStyle = {
-      ...this.state.style,
-      transform: [
-        { rotate: rotate ? rotate : '0deg' },
-        { scale: scale ? scale : 1 },
-      ],
-    }
-
-    if (
-      nextProps.rotate !== this.props.rotate &&
-      nextProps.rotate !== safeStyle.transform.find((t) => t.rotate).rotate
-    ) {
-      this.setState((prevState) => ({
-        style: {
-          ...prevState.style,
-          transform: prevState.style.transform.map((t) =>
-            t.rotate ? { rotate: nextProps.rotate } : t,
-          ),
-        },
-      }))
-    }
-
-    if (
-      nextProps.scale !== this.props.scale &&
-      nextProps.scale !== safeStyle.transform.find((t) => t.scale).scale
-    ) {
-      this.setState((prevState) => ({
-        style: {
-          ...prevState.style,
-          transform: prevState.style.transform.map((t) =>
-            t.scale ? { scale: nextProps.scale } : t,
-          ),
-        },
-      }))
-    }
-  }
-
-  updateNativeStyles = (style) => {
-    this.view.setNativeProps({ style })
-  }
-
-  // updateProps = nextProps => {
-  //   this.setState( prevState => ({
-  //     styles: {
-  //       ...prevState.styles,
-  //       ...nextProps.styles
-  //     }
-  //   }));
-  // };
-
-  reset = (callback) => {
-    const { left, top, transform } = this.prevStyles
-
-    this.dragStyles = { left, top }
-    this.pinchStyles = { transform }
-
-    this.updateStyles()
-
-    callback(this.prevStyles)
+    this._wrapRef?.setNativeProps({ style })
+    this._wrapStyle = style
   }
 
   render() {
-    const { style } = this.state
     const { children, hitSlop, isEnabled } = this.props
 
     return (
       <View
         hitSlop={hitSlop}
-        ref={(c) => {
-          this.view = c
+        ref={(ref) => {
+          this._wrapRef = ref
+          ref?.setNativeProps({ style: this._wrapStyle })
         }}
-        style={style}
-        {...(isEnabled ? this.pan.panHandlers : {})}>
-        {children}
-      </View>
+        {...(isEnabled ? this._panResponder.panHandlers : {})}
+        children={children}
+      />
     )
   }
 }

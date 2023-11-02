@@ -6,7 +6,7 @@
     "test": "jest"
   },
   "description": "React Native Gestures. Support: Drag, Scale and Rotate a Component.",
-  "main": "index.js",
+  "main": "index.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/ewlkkf/react-native-easy-gestures"
