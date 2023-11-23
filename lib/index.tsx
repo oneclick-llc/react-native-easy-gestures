@@ -90,14 +90,15 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
   constructor(props: GesturesProps) {
     super(props)
 
+    this._transformStyle = [
+      { translateX: props.initialTranslateX ?? 0 },
+      { translateY: props.initialTranslateY ?? 0 },
+      { rotate: props.initialRotate ?? '0deg' },
+      { scale: props.initialScale ?? 1 },
+    ]
     this._wrapStyle = {
       ...this.props.initialStyle,
-      transform: [
-        { translateX: props.initialTranslateX ?? 0 },
-        { translateY: props.initialTranslateY ?? 0 },
-        { rotate: props.initialRotate ?? '0deg' },
-        { scale: props.initialScale ?? 1 },
-      ],
+      transform: this._transformStyle,
     }
 
     this._panResponder = PanResponder.create({
