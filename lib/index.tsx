@@ -10,13 +10,9 @@ import {
 } from 'react-native'
 import { PanResponder, View } from 'react-native'
 
-import { angle, distance } from './utils/math'
-import {
-  assertDoubleTouch,
-  getAngle,
-  getScale,
-  getTouches,
-} from './utils/events'
+import { distance } from './utils/math'
+import { assertDoubleTouch, getScale, getTouches } from './utils/events'
+import { RotationGestureHandler } from './gesturesHandlers/RotationGestureHandler'
 
 interface TransformStyle {
   transform: [
@@ -34,7 +30,16 @@ export interface GesturesProps extends AccessibilityProps {
   isEnabled?: boolean
   hitSlop?: ViewProps['hitSlop']
   draggable?: boolean
+
   rotatable?: boolean
+  isRotationAnchoringEnabled?: boolean
+  onRotationAnchor?(): void
+  /**
+   * @default 45
+   * should be defined in {@linkcode Gestures.defaultProps}
+   */
+  rotationAnchorAngleDivider?: number
+
   minScale?: number
   maxScale?: number
 
@@ -59,7 +64,10 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
     isEnabled: true,
     hitSlop: { top: 20, right: 20, left: 20, bottom: 20 },
     draggable: true,
+
     rotatable: true,
+    rotationAnchorAngleDivider: 45,
+
     minScale: 0.3,
     maxScale: 3,
 
@@ -72,23 +80,31 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
 
   private _panResponder: PanResponderInstance
 
-  private _touchesOnPanResponderGrant: NativeTouchEvent[] = []
+  // made public for child Classes
+  /* private */ _touchesOnPanResponderGrant: NativeTouchEvent[] = []
   private _styleOnPanResponderGrant: GesturesStyle
 
-  private _prevAngle: number
   private _prevDistance: number
 
-  private _transformStyle: TransformStyle['transform'] = [
+  // made public for child Classes
+  /* private */ _transformStyle: TransformStyle['transform'] = [
     { translateX: 0 },
     { translateY: 0 },
     { rotate: '0deg' },
     { scale: 1 },
   ]
 
-  private _wrapStyle: GesturesStyle
+  // made public for child Classes
+  /* private */ _wrapStyle: GesturesStyle
+
+  private _rotationGestureHandler: RotationGestureHandler
 
   constructor(props: GesturesProps) {
     super(props)
+
+    this._rotationGestureHandler = new RotationGestureHandler({
+      parentComponent: this,
+    })
 
     this._transformStyle = [
       { translateX: props.initialTranslateX ?? 0 },
@@ -139,28 +155,6 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
     ]
   }
 
-  private _handleRotateGesture: NonNullable<
-    PanResponderCallbacks['onPanResponderMove']
-  > = (event) => {
-    const { rotatable } = this.props
-
-    const { _touchesOnPanResponderGrant } = this
-
-    if (rotatable) {
-      const currentAngle = angle(getTouches(event))
-      const initialAngle =
-        _touchesOnPanResponderGrant.length > 1
-          ? angle(_touchesOnPanResponderGrant)
-          : currentAngle
-      const newAngle = currentAngle - initialAngle
-      const diffAngle = this._prevAngle - newAngle
-
-      this._transformStyle[2] = { rotate: getAngle(this._wrapStyle, diffAngle) }
-
-      this._prevAngle = newAngle
-    }
-  }
-
   private _handleScaleGesture: NonNullable<
     PanResponderCallbacks['onPanResponderMove']
   > = (event) => {
@@ -202,7 +196,6 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
     (event) => {
       const { onStart } = this.props
 
-      this._prevAngle = 0
       this._prevDistance = 0
 
       this._touchesOnPanResponderGrant = getTouches(event)
@@ -233,6 +226,8 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
     this.props.onEnd?.(event, this._wrapStyle)
 
     this._setWrapStyleBasedOnTransformStyles()
+
+    this._rotationGestureHandler.reset()
   }
 
   private _handlePinchGesture: NonNullable<
@@ -240,7 +235,10 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
   > = (event, gestureState) => {
     if (event.nativeEvent.touches.length > 1) {
       this._handleScaleGesture(event, gestureState)
-      this._handleRotateGesture(event, gestureState)
+      this._rotationGestureHandler.handleRotationGestureEvent(
+        event,
+        gestureState,
+      )
     }
   }
 
@@ -255,8 +253,14 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
     this._wrapStyle = style
   }
 
+  componentWillUnmount() {
+    this._rotationGestureHandler.reset()
+  }
+
   render() {
     const { children, hitSlop, isEnabled } = this.props
+
+    this._rotationGestureHandler.onParentRender(this.props)
 
     return (
       <View
