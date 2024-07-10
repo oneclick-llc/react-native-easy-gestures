@@ -10,10 +10,23 @@ export const assertDoubleTouch = (
 ): touches is [NativeTouchEvent, NativeTouchEvent] => touches.length > 1
 
 /**
- * Diff between current angle and initial angle
+ * @returns Angle to be applied to {@linkcode gesturesStyle}
  */
-export const getAngle = (styles: GesturesStyle, diffAngle: number) =>
-  `${parseFloat(styles.transform[2].rotate) - diffAngle}deg`
+export const getAngleToApply = ({
+  gesturesStyle,
+  previouslyAppliedEventAngle,
+  eventAngle,
+}: {
+  gesturesStyle: GesturesStyle
+  previouslyAppliedEventAngle: number
+  /**
+   * accountedToGestureStartEvent_EventAngle
+   * rawEventAngle - gestureStartAngle
+   */
+  eventAngle: number
+}) =>
+  parseFloat(gesturesStyle.transform[2].rotate) -
+  (previouslyAppliedEventAngle - eventAngle)
 
 export const getScale = (style: GesturesStyle, diffDistance: number) =>
   style.transform[3].scale - diffDistance / 400
