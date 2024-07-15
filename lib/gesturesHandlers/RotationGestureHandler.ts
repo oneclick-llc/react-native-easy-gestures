@@ -178,7 +178,7 @@ export class RotationGestureHandler {
       })
       if (shouldRemainAnchored) return
 
-      this._setIsAngleAnchored(false, 1000)
+      this._setIsAngleAnchored(false, 500)
       this._setDeanchorEventAngle(eventAngle)
     } else if (this._isAngleAnchoringEnabled) {
       const shouldAnchor =
