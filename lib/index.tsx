@@ -223,7 +223,8 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
   private _handlePanResponderEnd: PanResponderCallbacks['onPanResponderEnd'] = (
     event,
   ) => {
-    this.props.onEnd?.(event, this._wrapStyle)
+    if (!event.nativeEvent.touches.length)
+      this.props.onEnd?.(event, this._wrapStyle)
 
     this._setWrapStyleBasedOnTransformStyles()
 
