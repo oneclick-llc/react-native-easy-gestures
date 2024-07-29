@@ -1,6 +1,6 @@
 import { GestureResponderEvent, NativeTouchEvent } from 'react-native'
 
-import { GesturesStyle } from '..'
+import type { GesturesTransformStyleSnapshot } from '../types'
 
 export const getTouches = (event: GestureResponderEvent) =>
   event.nativeEvent.touches
@@ -10,14 +10,14 @@ export const assertDoubleTouch = (
 ): touches is [NativeTouchEvent, NativeTouchEvent] => touches.length > 1
 
 /**
- * @returns Angle to be applied to {@linkcode gesturesStyle}
+ * @returns Angle to be applied to {@linkcode transformStyle}
  */
 export const getAngleToApply = ({
-  gesturesStyle,
+  transformStyle,
   previouslyAppliedEventAngle,
   eventAngle,
 }: {
-  gesturesStyle: GesturesStyle
+  transformStyle: GesturesTransformStyleSnapshot
   previouslyAppliedEventAngle: number
   /**
    * accountedToGestureStartEvent_EventAngle
@@ -25,8 +25,10 @@ export const getAngleToApply = ({
    */
   eventAngle: number
 }) =>
-  parseFloat(gesturesStyle.transform[2].rotate) -
+  parseFloat(transformStyle.transform[2].rotate) -
   (previouslyAppliedEventAngle - eventAngle)
 
-export const getScale = (style: GesturesStyle, diffDistance: number) =>
-  style.transform[3].scale - diffDistance / 400
+export const getScale = (
+  style: GesturesTransformStyleSnapshot,
+  diffDistance: number,
+) => style.transform[3].scale - diffDistance / 400

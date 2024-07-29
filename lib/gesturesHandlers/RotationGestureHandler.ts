@@ -26,10 +26,12 @@ export class RotationGestureHandler {
   }
 
   /**
+   * is set in constructor via {@linkcode onParentRender}
+   *
    * defines Anchor Angles
    * eg: value is 90, then Anchor Angles will be [0, 90, 180, 270, 360, 450, ...]
    */
-  private _anchorAngleDivider: number
+  private _anchorAngleDivider!: number
 
   constructor({ parentComponent }: { parentComponent: Gestures }) {
     this._parentComponent = parentComponent
@@ -39,7 +41,7 @@ export class RotationGestureHandler {
   /**
    * is set in constructor via {@linkcode onParentRender}
    */
-  private _isAngleAnchoringEnabled: boolean
+  private _isAngleAnchoringEnabled!: boolean
   private _setIsAngleAnchoringEnabled = (value: boolean) => {
     localLog?.(`_setIsAngleAnchoringEnabled(${value})`)
     this._isAngleAnchoringEnabled = value
@@ -149,7 +151,8 @@ export class RotationGestureHandler {
     const eventAngle = _rawEventAngle - _gestureStartAngle
 
     let angleToApply = getAngleToApply({
-      gesturesStyle: this._parentComponent._wrapStyle,
+      transformStyle:
+        this._parentComponent.animatedTransformValues.getSnapshot(),
       previouslyAppliedEventAngle: this._previouslyAppliedEventAngle,
       eventAngle,
     })
@@ -157,8 +160,9 @@ export class RotationGestureHandler {
     localLog?.({
       angleToApply,
       _previouslyAppliedEventAngle: this._previouslyAppliedEventAngle,
-      'this._parentComponent._wrapStyle.transform[2].rotate':
-        this._parentComponent._wrapStyle.transform[2].rotate,
+      'this._parentComponent.animatedTransformValues.getSnapshot().transform[2].rotate':
+        this._parentComponent.animatedTransformValues.getSnapshot().transform[2]
+          .rotate,
     })
 
     const angularDistanceToAnchorAngle = Math.abs(
@@ -212,7 +216,8 @@ export class RotationGestureHandler {
       this._deanchorEventAngle !== undefined
     ) {
       angleToApply = getAngleToApply({
-        gesturesStyle: this._parentComponent._wrapStyle,
+        transformStyle:
+          this._parentComponent.animatedTransformValues.getSnapshot(),
         previouslyAppliedEventAngle: this._previouslyAppliedEventAngle,
         eventAngle:
           eventAngle - (this._deanchorEventAngle - this._anchorEventAngle),
@@ -221,7 +226,11 @@ export class RotationGestureHandler {
       this._setDeanchorEventAngle(undefined)
     }
 
-    this._parentComponent._transformStyle[2] = { rotate: `${angleToApply}deg` }
+    angleToApply = angleToApply % 360
+    if (angleToApply < 0) angleToApply += 360
+    this._parentComponent.animatedTransformValues.setValues({
+      rotate: angleToApply,
+    })
 
     this._setPreviouslyAppliedEventAngle(eventAngle)
   }

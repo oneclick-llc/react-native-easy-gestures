@@ -1,6 +1,8 @@
 import React, { Component } from 'react'
 import {
   AccessibilityProps,
+  PanResponder,
+  Animated,
   GestureResponderEvent,
   NativeTouchEvent,
   PanResponderCallbacks,
@@ -8,21 +10,14 @@ import {
   ViewProps,
   ViewStyle,
 } from 'react-native'
-import { PanResponder, View } from 'react-native'
 
 import { distance } from './utils/math'
 import { assertDoubleTouch, getScale, getTouches } from './utils/events'
 import { RotationGestureHandler } from './gesturesHandlers/RotationGestureHandler'
+import { AnimatedTransformValues } from './utils/AnimatedTransformValues'
+import type { GesturesTransformStyleSnapshot } from './types'
 
-interface TransformStyle {
-  transform: [
-    { translateX: number },
-    { translateY: number },
-    { rotate: string },
-    { scale: number },
-  ]
-}
-export type GesturesStyle = Omit<ViewStyle, 'transform'> & TransformStyle
+export type GesturesStyle = Omit<ViewStyle, 'transform'>
 
 export interface GesturesProps extends AccessibilityProps {
   children: React.ReactNode
@@ -43,16 +38,25 @@ export interface GesturesProps extends AccessibilityProps {
   minScale?: number
   maxScale?: number
 
-  initialStyle?: Omit<GesturesStyle, 'transform'>
+  style?: GesturesStyle
 
   initialTranslateX?: number
   initialTranslateY?: number
   initialRotate?: string
   initialScale?: number
 
-  onStart?(event: GestureResponderEvent, style: GesturesStyle): void
-  onMove?(event: GestureResponderEvent, styles: GesturesStyle): void
-  onEnd?(event: GestureResponderEvent, style: GesturesStyle): void
+  onStart?(
+    event: GestureResponderEvent,
+    style: GesturesTransformStyleSnapshot,
+  ): void
+  onMove?(
+    event: GestureResponderEvent,
+    styles: GesturesTransformStyleSnapshot,
+  ): void
+  onEnd?(
+    event: GestureResponderEvent,
+    style: GesturesTransformStyleSnapshot,
+  ): void
 }
 
 interface GesturesState {}
@@ -71,7 +75,7 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
     minScale: 0.3,
     maxScale: 3,
 
-    initialStyle: {},
+    style: {},
     initialTranslateX: 0,
     initialTranslateY: 0,
     initialRotate: '0deg',
@@ -82,20 +86,12 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
 
   // made public for child Classes
   /* private */ _touchesOnPanResponderGrant: NativeTouchEvent[] = []
-  private _styleOnPanResponderGrant: GesturesStyle
+
+  private _transformStyleOnPanResponderGrant: GesturesTransformStyleSnapshot
 
   private _prevDistance: number
 
-  // made public for child Classes
-  /* private */ _transformStyle: TransformStyle['transform'] = [
-    { translateX: 0 },
-    { translateY: 0 },
-    { rotate: '0deg' },
-    { scale: 1 },
-  ]
-
-  // made public for child Classes
-  /* private */ _wrapStyle: GesturesStyle
+  public animatedTransformValues: AnimatedTransformValues
 
   private _rotationGestureHandler: RotationGestureHandler
 
@@ -106,21 +102,19 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
       parentComponent: this,
     })
 
-    this._transformStyle = [
-      { translateX: props.initialTranslateX ?? 0 },
-      { translateY: props.initialTranslateY ?? 0 },
-      { rotate: props.initialRotate ?? '0deg' },
-      { scale: props.initialScale ?? 1 },
-    ]
-    this._wrapStyle = {
-      ...this.props.initialStyle,
-      transform: this._transformStyle,
-    }
+    this.animatedTransformValues = new AnimatedTransformValues({
+      translateX: props.initialTranslateX ?? 0,
+      translateY: props.initialTranslateY ?? 0,
+      rotate: parseFloat(props.initialRotate ?? '0deg'),
+      scale: props.initialScale ?? 1,
+    })
 
     this._panResponder = PanResponder.create({
       onPanResponderGrant: this._handlePanResponderGrant,
       onPanResponderMove: this._handlePanResponderMove,
       onPanResponderEnd: this._handlePanResponderEnd,
+
+      // onStartShouldSetPanResponderCapture: () => true,
 
       onPanResponderTerminate: () => true,
       onShouldBlockNativeResponder: () => true,
@@ -136,23 +130,20 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
   private _handleDragGesture: NonNullable<
     PanResponderCallbacks['onPanResponderMove']
   > = (_event, gestureState) => {
-    const { _styleOnPanResponderGrant } = this
+    const { _transformStyleOnPanResponderGrant } = this
     const { draggable } = this.props
 
     const translateX = draggable
-      ? _styleOnPanResponderGrant.transform[0].translateX + gestureState.dx
-      : _styleOnPanResponderGrant.transform[0].translateX
+      ? _transformStyleOnPanResponderGrant.transform[0].translateX +
+        gestureState.dx
+      : _transformStyleOnPanResponderGrant.transform[0].translateX
 
     const translateY = draggable
-      ? _styleOnPanResponderGrant.transform[1].translateY + gestureState.dy
-      : _styleOnPanResponderGrant.transform[1].translateY
+      ? _transformStyleOnPanResponderGrant.transform[1].translateY +
+        gestureState.dy
+      : _transformStyleOnPanResponderGrant.transform[1].translateY
 
-    this._transformStyle = [
-      { translateX },
-      { translateY },
-      this._transformStyle[2],
-      this._transformStyle[3],
-    ]
+    this.animatedTransformValues.setValues({ translateX, translateY })
   }
 
   private _handleScaleGesture: NonNullable<
@@ -183,25 +174,27 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
       const diffDistance = this._prevDistance - increasedDistance
 
       const scale = Math.min(
-        Math.max(getScale(this._wrapStyle, diffDistance), minScale),
+        Math.max(
+          getScale(this.animatedTransformValues.getSnapshot(), diffDistance),
+          minScale,
+        ),
         maxScale,
       )
 
-      this._transformStyle[3] = { scale }
+      this.animatedTransformValues.setValues({ scale })
       this._prevDistance = increasedDistance
     }
   }
 
-  private _handlePanResponderGrant: PanResponderCallbacks['onPanResponderStart'] =
+  private _handlePanResponderGrant: PanResponderCallbacks['onPanResponderGrant'] =
     (event) => {
-      const { onStart } = this.props
+      this._touchesOnPanResponderGrant = getTouches(event)
+      this._transformStyleOnPanResponderGrant =
+        this.animatedTransformValues.getSnapshot()
 
       this._prevDistance = 0
 
-      this._touchesOnPanResponderGrant = getTouches(event)
-      this._styleOnPanResponderGrant = this._wrapStyle
-
-      onStart?.(event, this._wrapStyle)
+      this.props.onStart?.(event, this.animatedTransformValues.getSnapshot())
     }
 
   private _handlePanResponderMove: PanResponderCallbacks['onPanResponderMove'] =
@@ -215,18 +208,14 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
         this._handlePinchGesture(event, gestureState)
       }
 
-      this._setWrapStyleBasedOnTransformStyles()
-
-      this.props.onMove?.(event, this._wrapStyle)
+      this.props.onMove?.(event, this.animatedTransformValues.getSnapshot())
     }
 
   private _handlePanResponderEnd: PanResponderCallbacks['onPanResponderEnd'] = (
     event,
   ) => {
     if (!event.nativeEvent.touches.length)
-      this.props.onEnd?.(event, this._wrapStyle)
-
-    this._setWrapStyleBasedOnTransformStyles()
+      this.props.onEnd?.(event, this.animatedTransformValues.getSnapshot())
 
     this._rotationGestureHandler.reset()
   }
@@ -243,17 +232,6 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
     }
   }
 
-  private _wrapRef: View | null
-  private _setWrapStyleBasedOnTransformStyles = () => {
-    const style: GesturesStyle = {
-      ...this._wrapStyle,
-      transform: this._transformStyle,
-    }
-
-    this._wrapRef?.setNativeProps({ style })
-    this._wrapStyle = style
-  }
-
   componentWillUnmount() {
     this._rotationGestureHandler.reset()
   }
@@ -264,13 +242,13 @@ export class Gestures extends Component<GesturesProps, GesturesState> {
     this._rotationGestureHandler.onParentRender(this.props)
 
     return (
-      <View
+      <Animated.View
         hitSlop={hitSlop}
-        ref={(ref) => {
-          this._wrapRef = ref
-          ref?.setNativeProps({ style: this._wrapStyle })
-        }}
         {...(isEnabled ? this._panResponder.panHandlers : {})}
+        style={[
+          this.props.style,
+          this.animatedTransformValues.getTransformStyle(),
+        ]}
         children={children}
       />
     )
